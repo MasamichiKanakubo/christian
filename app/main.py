@@ -128,19 +128,3 @@ def handle_message(data_json):
     reply_message = TextSendMessage(text=reply_text)
     line_bot_api.reply_message(reply_token, reply_message)
 
-
-connector = aiohttp.TCPConnector(ssl=False)
-deploy_url = "https://christian-6ibjha4nnq-an.a.run.app"
-
-
-async def send_request():
-    while True:
-        async with aiohttp.ClientSession(connector=connector) as session:
-            async with session.get(deploy_url) as response:
-                print(await response.text())
-        await asyncio.sleep(30)  # 50秒ごとにリクエストを送信
-
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(send_request())

@@ -33,7 +33,7 @@ vectordb = Chroma.from_documents(
     persist_directory=persist_directory,
 )
 
-query = "パンケーキ"
+query = "新歓いつやってるっすか"
 docs = vectordb.similarity_search_with_relevance_scores(query, k=1)
 page_content = docs[0][0].page_content
 similarity = docs[0][1]
@@ -63,7 +63,7 @@ completion = client.chat.completions.create(
         },
         {
             "role": "user",
-            "content": f"「{query}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です.メンヘラ彼女風に2,3行で返してください。{query}",
+            "content": f"「{query}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です.2,3行で返してください",
         },
     ],
 )
