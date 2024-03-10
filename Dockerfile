@@ -1,5 +1,5 @@
 # Pythonのベースイメージを作成
-FROM python:3.11.3-slim
+FROM python:3.10-slim-bookworm
 
 # 作業ディレクトリを指定
 WORKDIR /app

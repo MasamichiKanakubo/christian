@@ -10,10 +10,11 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextSendMessage
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
+import logging
 
 
 # from app.repositories.scrapbox_repository import ScrapboxRepository
@@ -50,22 +51,19 @@ async def root():
 
 
 @app.post("/")
-async def callback(request: Request, background_tasks: BackgroundTasks):
+async def callback(request: Request):
     body = await request.body()
     data_json = json.loads(body)
 
     if data_json["events"]:
         try:
-            background_tasks.add_task(handle_message, data_json)
+            await handle_message(data_json)
         except IndexError:
             return {"error": "Invalid event data"}
-    else:
-        return {"error": "Events not found"}
-    return {"message": "OK"}
+    return {"error": "Events not found"}
 
 
-@handler.add(MessageEvent)
-def handle_message(data_json):
+async def handle_message(data_json):
     incoming_text = data_json["events"][0]["message"]["text"]
     reply_token = data_json["events"][0]["replyToken"]
 
