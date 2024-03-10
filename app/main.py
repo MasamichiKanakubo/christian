@@ -67,68 +67,65 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
 def handle_message(data_json):
     incoming_text = data_json["events"][0]["message"]["text"]
     reply_token = data_json["events"][0]["replyToken"]
-
-    with open("app/data/faqs.json", "r", encoding="utf-8") as file:
-        faqs = json.load(file)
-
-    for item in faqs:
-        if incoming_text in item:
-            response = requests.get(url + item[incoming_text]).json()
-            descriptions = response.get("descriptions", [])
-
-            descriptions_list: list = [
-                description
-                for description in descriptions
-                if not question_re_pattern.search(description)
-            ]
-            description_text = "".join(descriptions_list)
-            loader = CSVLoader(
-                file_path="app/data/questions.csv",
+            
+    loader = CSVLoader(
+        file_path="app/data/questions.csv",
     
-            csv_args={
-                "delimiter": ",",
-                "quotechar": '"',
-                "fieldnames": ["id", "question", "title"],
+        csv_args={
+            "delimiter": ",",
+            "quotechar": '"',
+            "fieldnames": ["id", "question", "title"],
+        },
+        encoding="utf-8",
+        )
+
+    docs = loader.load()
+
+    embedding = OpenAIEmbeddings(model="text-embedding-ada-002")
+    persist_directory = "chroma_faqs"
+    vectordb = Chroma.from_documents(
+        documents=docs,
+        embedding=embedding,
+        collection_name="faqs",
+        persist_directory=persist_directory,
+    )
+    
+    docs = vectordb.similarity_search_with_relevance_scores(incoming_text, k=1)
+    
+    page_content = docs[0][0].page_content  
+    title = page_content.split("\ntitle: ")[1] 
+
+    
+    response = requests.get(url + title).json()
+    descriptions = response.get("descriptions", [])
+    
+    descriptions_list: list = [
+        description
+        for description in descriptions
+        if not question_re_pattern.search(description)
+    ]
+    description_text = "".join(descriptions_list)
+
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": "あなたは新入生からの質問に答える年上の先輩です。",
             },
-            encoding="utf-8",
-            )
+            {
+                "role": "user",
+                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です.セクシーなお姉さん風に2,3行で返してください。",
+            },
+        ],
+    )
+    reply_text = completion.choices[0].message.content
 
-            docs = loader.load()
-
-            embedding = OpenAIEmbeddings(model="text-embedding-ada-002")
-            persist_directory = "chroma_faqs"
-            vectordb = Chroma.from_documents(
-            documents=docs,
-            embedding=embedding,
-            collection_name="faqs",
-            persist_directory=persist_directory,
-            )
-
-            query = "活動頻度はどれくらいですか？"
-            docs = vectordb.similarity_search_with_relevance_scores(query, k=1)
-            page_content = docs[0][0].page_content  
-            title = page_content.split("\ntitle: ")[1] 
-
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-            completion = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "あなたは新入生からの質問に答える年上の先輩です。",
-                    },
-                    {
-                        "role": "user",
-                        "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です.セクシーなお姉さん風に2,3行で返してください。",
-                    },
-                ],
-            )
-            reply_text = completion.choices[0].message.content
-
-            reply_message = TextSendMessage(text=reply_text)
-            line_bot_api.reply_message(reply_token, reply_message)
-            return {"message": reply_text}
+    reply_message = TextSendMessage(text=reply_text)
+    line_bot_api.reply_message(reply_token, reply_message)
         
     default_text = TextSendMessage(text="質問に対する回答は見つかりませんでした。")
     line_bot_api.reply_message(reply_token, default_text)
