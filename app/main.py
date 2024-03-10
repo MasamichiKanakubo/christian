@@ -109,7 +109,7 @@ async def handle_message(data_json):
     description_text = "".join(descriptions_list)
 
     completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4-0125-preview",
         messages=[
             {
                 "role": "system",
@@ -117,7 +117,7 @@ async def handle_message(data_json):
             },
             {
                 "role": "user",
-                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です..メンヘラ彼女風に2,3行で返してください",
+                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です..メンヘラ彼女風に2,3行で返してください. 文章には絵文字を多用します。",
             },
         ],
     )
