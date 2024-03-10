@@ -24,6 +24,7 @@ load_dotenv()
 
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 url = "https://scrapbox.io/api/pages/christian-beginners/"
 
@@ -67,7 +68,7 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
 def handle_message(data_json):
     incoming_text = data_json["events"][0]["message"]["text"]
     reply_token = data_json["events"][0]["replyToken"]
-            
+
     loader = CSVLoader(
         file_path="app/data/questions.csv",
     
@@ -77,8 +78,7 @@ def handle_message(data_json):
             "fieldnames": ["id", "question", "title"],
         },
         encoding="utf-8",
-        )
-
+    )
     docs = loader.load()
 
     embedding = OpenAIEmbeddings(model="text-embedding-ada-002")
@@ -89,16 +89,20 @@ def handle_message(data_json):
         collection_name="faqs",
         persist_directory=persist_directory,
     )
-    
-    docs = vectordb.similarity_search_with_relevance_scores(incoming_text, k=1)
-    
-    page_content = docs[0][0].page_content  
-    title = page_content.split("\ntitle: ")[1] 
 
-    
+    docs = vectordb.similarity_search_with_relevance_scores(incoming_text, k=1)
+    page_content = docs[0][0].page_content 
+    similarity = docs[0][1]
+    title = page_content.split("\ntitle: ")[1]
+     
+    if similarity < 0.7:
+        default_text = TextSendMessage(text="質問に対する回答は見つかりませんでした。")
+        line_bot_api.reply_message(reply_token, default_text)
+        return
+
     response = requests.get(url + title).json()
     descriptions = response.get("descriptions", [])
-    
+
     descriptions_list: list = [
         description
         for description in descriptions
@@ -106,19 +110,16 @@ def handle_message(data_json):
     ]
     description_text = "".join(descriptions_list)
 
-
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
     completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
             {
                 "role": "system",
-                "content": "あなたは新入生からの質問に答える年上の先輩です。",
+                "content": "あなたは新入生からの質問に答える女性です。メンヘラ気質で束縛が激しいです",
             },
             {
                 "role": "user",
-                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です.セクシーなお姉さん風に2,3行で返してください。",
+                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です..メンヘラ彼女風に2,3行で返してください",
             },
         ],
     )
@@ -126,9 +127,6 @@ def handle_message(data_json):
 
     reply_message = TextSendMessage(text=reply_text)
     line_bot_api.reply_message(reply_token, reply_message)
-        
-    default_text = TextSendMessage(text="質問に対する回答は見つかりませんでした。")
-    line_bot_api.reply_message(reply_token, default_text)
 
 
 connector = aiohttp.TCPConnector(ssl=False)
