@@ -64,7 +64,7 @@ def handle_message(data_json):
     incoming_text = data_json["events"][0]["message"]["text"]
     reply_token = data_json["events"][0]["replyToken"]
 
-    with open("app/faqs.json", "r", encoding="utf-8") as file:
+    with open("app/data/faqs.json", "r", encoding="utf-8") as file:
         faqs = json.load(file)
 
     for item in faqs:
