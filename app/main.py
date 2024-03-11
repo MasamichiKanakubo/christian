@@ -10,7 +10,13 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from linebot import LineBotApi, WebhookHandler
-from linebot.models import MessageEvent, TextSendMessage
+from linebot.models import (
+    MessageEvent,
+    TextSendMessage,
+    QuickReply,
+    QuickReplyButton,
+    MessageAction,
+)
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -67,9 +73,42 @@ async def handle_message(data_json):
     incoming_text = data_json["events"][0]["message"]["text"]
     reply_token = data_json["events"][0]["replyToken"]
 
+    if incoming_text == "お問い合わせできるところどこ？":
+        return
+    
+
+    if incoming_text == "オタ姫ちゃん何言ってるかわからないよ...":
+        not_text = "そっか😢、力になれなくてごめんね🙏次は答えてみせるから...💪💖"
+        yet_answer_with_quick_reply = TextSendMessage(
+            text=not_text,
+            quick_reply=QuickReply(
+                items=[
+                    QuickReplyButton(
+                        action=MessageAction(
+                            label="もう一度質問する", text="もう一回質問してもいい？"
+                        )
+                    ),
+                    QuickReplyButton(
+                        action=MessageAction(
+                            label="公式にお問い合わせする", text="お問い合わせできるところどこ？"
+                        )
+                    )
+                ]
+            )
+        )
+        line_bot_api.reply_message(reply_token, yet_answer_with_quick_reply)
+        return
+
+    elif incoming_text == "解決したよ！ありがとうオタ姫ちゃん！":
+        yes_text = TextSendMessage(text="よかった😊、また何かあったら聞いてね🙋‍♀️💖")
+        line_bot_api.reply_message(reply_token, yes_text)
+        return
+    
+    elif incoming_text == "もう一回質問してもいい？":
+        return
+
     loader = CSVLoader(
         file_path="app/data/questions.csv",
-    
         csv_args={
             "delimiter": ",",
             "quotechar": '"',
@@ -89,12 +128,12 @@ async def handle_message(data_json):
     )
 
     docs = vectordb.similarity_search_with_relevance_scores(incoming_text, k=1)
-    page_content = docs[0][0].page_content 
+    page_content = docs[0][0].page_content
     similarity = docs[0][1]
     title = page_content.split("\ntitle: ")[1]
-     
+
     if similarity < 0.7:
-        default_text = TextSendMessage(text="質問に対する回答は見つかりませんでした。")
+        default_text = TextSendMessage(text="ん〜🤔、ちょっといい答えが見つからないなあ😅聞き方を変えてくれると思い出せるかも！🔥💕")
         line_bot_api.reply_message(reply_token, default_text)
         return
 
@@ -113,16 +152,33 @@ async def handle_message(data_json):
         messages=[
             {
                 "role": "system",
-                "content": "あなたは新入生からの質問に答える女性です。メンヘラ気質で束縛が激しいです",
+                "content": "あなたは新入生からの質問に答える女性です。また、あなたはオタサーの姫です。メンヘラ気質で束縛が激しいです",
             },
             {
                 "role": "user",
-                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です..メンヘラ彼女風に2,3行で返してください. 文章には絵文字を多用します。",
+                "content": f"「{incoming_text}」という質問が来ています。データベースには似た質問として「{title}」というのがあり、その回答は「{description_text}」です.オタサーの姫風に2,3行で返してください. 文章には絵文字を多用します。この回答が質問の答えになってるか確認してください",
             },
         ],
     )
     reply_text = completion.choices[0].message.content
 
-    reply_message = TextSendMessage(text=reply_text)
-    line_bot_api.reply_message(reply_token, reply_message)
-
+    text_message_with_quick_reply = TextSendMessage(
+        text=reply_text,
+        quick_reply=QuickReply(
+            items=[
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="解決した", text="解決したよ！ありがとうオタ姫ちゃん！"
+                    )
+                ),
+                QuickReplyButton(
+                    action=MessageAction(
+                        label="解決してない",
+                        text="オタ姫ちゃん何言ってるかわからないよ...",
+                    )
+                ),
+            ]
+        ),
+    )
+    line_bot_api.reply_message(reply_token, text_message_with_quick_reply)
+    return
